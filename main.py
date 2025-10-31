@@ -4,7 +4,11 @@ from typing import Optional
 from random import randrange
 import psycopg2
 from dotenv import load_dotenv
+from psycopg2.extras import RealDictCursor
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 import os
+import time
 app = FastAPI()
 load_dotenv()
 
@@ -14,8 +18,32 @@ class Post(BaseModel):
         published: bool = True
         rating: Optional[float] = None
 
-try:
-        conn = psycopg2.connect(host = os.getenv("host"),database=os.getenv("database"), user = 'postgres', password = os.getenv("password"))
+
+while True:
+        try:
+                conn = psycopg2.connect(host = os.getenv("host"),database=os.getenv("database"), user = 'postgres', password = os.getenv("password"), cursor_factory=RealDictCursor)
+                cursor = conn.cursor()
+                print("Database connection was successful")
+                break
+        except Exception as error:
+                print("connecting to data base failed ")
+                print("Error", error)
+                time.sleep(2)
+                
+                
+# while True:
+#         try:
+#                 url = f"mysql+pymysql://{os.getenv('suser')}:{os.getenv('spassword')}@{os.getenv('shost')}:{os.getenv('sport')}/{os.getenv('sname')}"
+#                 engine = create_engine(url)
+#                 session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+#                 db = session()
+#                 print("Database connection was successful")
+#                 break
+#         except Exception as error:
+#                 print("connecting to data base failed ")
+#                 print("Error", error)
+#                 time.sleep(2)            
+                
 
 my_post = [{
         "title": "title of post",
@@ -55,16 +83,65 @@ async def root():
 
 @app.get("/post")
 def get_post():
-    return {"data": "This is a post endpoint"}
+        cursor.execute(
+              """
+              SELECT * FROM practice
+              """  
+        )
+        post = cursor.fetchall()
+        print(post)
+        return {"data": post}
+
+# @app.get("/post")
+# def get_post():
+#         practice = text(
+#               """
+#               SELECT * FROM user
+#               """  
+#         )
+#         post = db.execute(practice).fetchall()
+#         posts = [dict(row._mapping) for row in post]
+#         return {"data": posts}
 
 
-@app.post("/createposts")
+
+
+
+@app.post("/createposts", status_code=status.HTTP_201_CREATED)
 def post(payload:Post):
-        payload.dict()
-        return {"data": payload.title, "title":payload.content, "published":payload.published, "rating":payload.rating}
+        cursor.execute("""
+                       INSERT INTO practice(title, content, published)
+                       VALUES(%s,%s,%s) RETURNING *""", (payload.title, payload.content, payload.published))
+        new_post = cursor.fetchone()
+        conn.commit()
+        return {"data": new_post}
 
 
 
+# @app.post("/createposts", status_code=status.HTTP_201_CREATED)
+# def create_post(payload: Post):
+#     query = text("""
+#         INSERT INTO practice (title, content, published)
+#         VALUES (:title, :content, :published)
+#     """)
+#     db.execute(query, {
+#         "title": payload.title,
+#         "content": payload.content,
+#         "published": payload.published
+#     })
+#     db.commit()
+
+#     # Retrieve the newly created record (optional)
+#     result = db.execute(
+#         text("SELECT * FROM practice ORDER BY id DESC LIMIT 1")
+#     ).fetchone()
+
+#     if result:
+#         new_post = dict(result._mapping)
+#     else:
+#         new_post = None
+
+#     return {"data": new_post}
 
 
 
